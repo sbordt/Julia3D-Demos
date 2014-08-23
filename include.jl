@@ -24,13 +24,14 @@ function unitGeometry{T}(geometry::Vector{Vector3{T}})
 	xmiddle = xmin + (xmax - xmin) / 2;
 	ymiddle = ymin + (ymax - ymin) / 2;
 	zmiddle = zmin + (zmax - zmin) / 2;
+	scale = 2 / max(xmax - xmin, ymax - ymin, zmax - zmin);
 
 	result = similar(geometry)
 
 	for i = 1:length(result)
-		result[i] = Vector3{T}(2 * (geometry[i][1] - xmiddle) / (xmax - xmin),
-							   2 * (geometry[i][2] - ymiddle) / (ymax - zmin),
-							   2 * (geometry[i][3] - zmiddle) / (ymax - zmin)
+		result[i] = Vector3{T}((geometry[i][1] - xmiddle) * scale,
+							   (geometry[i][2] - ymiddle) * scale,
+							   (geometry[i][3] - zmiddle) * scale
 					);
 	end
 

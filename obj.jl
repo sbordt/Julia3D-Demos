@@ -13,18 +13,43 @@ type Face{T}
 end
 
 function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
+    vertexconvertfunc = vertextype == Float64 ? float64 : (vertextype == Float32 ? float32 : error("Vertex type: ", vertextype, " not supported"))
+    faceconvertfunc = faceindextype == Int ? int : (
+        faceindextype == Int32 ? int32 : (
+            faceindextype == Uint64 ? uint64 : faceindextype == Uint32 ? uint32 : error("Faceindex type: ", faceindextype, " not supported")))   
+
     vs 	= Vector3{vertextype}[]
     nvs = Vector3{vertextype}[]
     uvs = Vector3{vertextype}[]
     fcs = Face{faceindextype}[]
 
-    materials = Dict(); # map material names to array with indieces of faces
-    current_material = "";
+    materials = Dict() # map material names to array with indieces of faces
+    current_material = ""
     
-    vertexconvertfunc = vertextype == Float64 ? float64 : (vertextype == Float32 ? float32 : error("Vertex type: ", vertextype, " not supported"))
-    faceconvertfunc = faceindextype == Int ? int : (
-        faceindextype == Int32 ? int32 : (
-            faceindextype == Uint64 ? uint64 : faceindextype == Uint32 ? uint32 : error("Faceindex type: ", faceindextype, " not supported")))
+    # face indices are allowed to be negative, these three methods handle that
+    function vertexRef(s::String)
+        i = int(s)
+        if i < 0
+            return faceconvertfunc(length(vs) + i +1)
+        end
+        return faceconvertfunc(i)
+    end
+
+    function normalRef(s::String)
+        i = int(s)
+        if i < 0
+            return faceconvertfunc(length(nvs) + i +1)
+        end
+        return faceconvertfunc(i)
+    end
+
+    function textureRef(s::String)
+        i = int(s)
+        if i < 0
+            return faceconvertfunc(length(uvs) + i +1)
+        end
+        return faceconvertfunc(i)
+    end
 
     lineNumber = 1
     while !eof(io)
@@ -64,28 +89,32 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
                 # two slashes indicate #//#
                 if (contains(line[2], "//"))    
                     for i=2:length(line)
-                        v = faceconvertfunc(split(line[i], "//")) 
+                        v = split(line[i], "//")
                         assert(length(v) == 2)
-                        push!(face.vertices, faceconvertfunc(v[1]))
-                        push!(face.normals, faceconvertfunc(v[2]))
+                        push!(face.vertices, vertexRef(v[1]))
+                        push!(face.normals, normalRef(v[2]))
                     end
                 else
-                    v = faceconvertfunc(split(line[2], "/")) 
+                    v = split(line[2], "/")
 
-                    if length(v) == 2
+                    if length(v) == 1
                         for i=2:length(line)
-                            v = faceconvertfunc(split(line[i], "/")) 
+                            push!(face.vertices, vertexRef(line[i]))
+                        end
+                    elseif length(v) == 2
+                        for i=2:length(line)
+                            v = split(line[i], "/")
                             assert(length(v) == 2)
-                            push!(face.vertices, faceconvertfunc(v[1]))
-                            push!(face.texture_coords, faceconvertfunc(v[2]))
+                            push!(face.vertices, vertexRef(v[1]))
+                            push!(face.texture_coords, textureRef(v[2]))
                         end
                     elseif length(v) == 3
                         for i=2:length(line)
-                            v = faceconvertfunc(split(line[i], "/")) 
+                            v = split(line[i], "/") 
                             assert(length(v) == 3)
-                            push!(face.vertices, faceconvertfunc(v[1]))
-                            push!(face.texture_coords, faceconvertfunc(v[2]))
-                            push!(face.normals, faceconvertfunc(v[3]))
+                            push!(face.vertices, vertexRef(v[1]))
+                            push!(face.texture_coords, textureRef(v[2]))
+                            push!(face.normals, normalRef(v[3]))
                         end
                     else
                         println("WARNING: Illegal line while parsing wavefront .obj: '$txt' (line $lineNumber)")
@@ -117,6 +146,31 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
         lineNumber += 1
     end
 
+    # triangulate polygons
+    i = 1
+    while i <= length(fcs)
+        face = fcs[i]
+
+        if length(face.vertices) > 3
+            triangle = Face{faceindextype}(face.vertices[1:3],[],[])
+            splice!(face.vertices, 2)
+
+            if !isempty(face.texture_coords)
+                triangle.texture_coords = face.texture_coords[1:3]
+                splice!(face.texture_coords, 2)
+            end
+            if !isempty(face.normals)
+                triangle.normals = face.normals[1:3]
+                splice!(face.normals, 2)
+            end
+
+            push!(fcs, triangle)
+            continue
+        end
+
+        i += 1
+    end
+
     # compile OBJ
     vs_compiled  = Vector3{vertextype}[]
     nvs_compiled = Vector3{vertextype}[]
@@ -125,40 +179,35 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
 
     i = 0
     for face in fcs
-        if length(face.vertices) == 3
-            push!(vs_compiled, vs[face.vertices[1]])
-            push!(vs_compiled, vs[face.vertices[2]])
-            push!(vs_compiled, vs[face.vertices[3]])
+        push!(vs_compiled, vs[face.vertices[1]])
+        push!(vs_compiled, vs[face.vertices[2]])
+        push!(vs_compiled, vs[face.vertices[3]])
 
-            if isempty(face.normals)
-                println("WARNING: No normals!!!")
-                push!(uvs_compiled, Vector3{vertextype}(0))
-                push!(uvs_compiled, Vector3{vertextype}(0))
-                push!(uvs_compiled, Vector3{vertextype}(0))
-            else 
-                push!(nvs_compiled, -nvs[face.normals[1]])
-                push!(nvs_compiled, -nvs[face.normals[2]])
-                push!(nvs_compiled, -nvs[face.normals[3]])
-            end
-
-            if isempty(face.texture_coords)
-                push!(uvs_compiled, Vector3{vertextype}(0))
-                push!(uvs_compiled, Vector3{vertextype}(0))
-                push!(uvs_compiled, Vector3{vertextype}(0))
-            else 
-                push!(uvs_compiled, uvs[face.texture_coords[1]])
-                push!(uvs_compiled, uvs[face.texture_coords[2]])
-                push!(uvs_compiled, uvs[face.texture_coords[3]])
-            end
-
-            push!(fcs_compiled, Vector3{faceindextype}(faceconvertfunc(i), faceconvertfunc(i+1), faceconvertfunc(i+2)))
-            i += 3
-        elseif length(face.vertices) == 4
-            println("WARNING: 4 sides")
-        else
-            println("WARNING: more than 4 sides!!!")
+        if isempty(face.normals)
+            println("WARNING: No normals!!!")
+            push!(uvs_compiled, Vector3{vertextype}(0))
+            push!(uvs_compiled, Vector3{vertextype}(0))
+            push!(uvs_compiled, Vector3{vertextype}(0))
+        else 
+            push!(nvs_compiled, -nvs[face.normals[1]])
+            push!(nvs_compiled, -nvs[face.normals[2]])
+            push!(nvs_compiled, -nvs[face.normals[3]])
         end
+
+        if isempty(face.texture_coords)
+            push!(uvs_compiled, Vector3{vertextype}(0))
+            push!(uvs_compiled, Vector3{vertextype}(0))
+            push!(uvs_compiled, Vector3{vertextype}(0))
+        else 
+            push!(uvs_compiled, uvs[face.texture_coords[1]])
+            push!(uvs_compiled, uvs[face.texture_coords[2]])
+            push!(uvs_compiled, uvs[face.texture_coords[3]])
+        end
+
+        push!(fcs_compiled, Vector3{faceindextype}(faceconvertfunc(i), faceconvertfunc(i+1), faceconvertfunc(i+2)))
+        i += 3
     end
+
     return (vs_compiled, nvs_compiled, uvs_compiled, fcs_compiled)
 end
 
@@ -168,7 +217,7 @@ type WavefrontMTLMaterial{T}
 end
 
 function WavefrontMTLMaterial{T}()
-    WavefrontMTLMaterial{T}("", Vector3{T}(0))
+    return WavefrontMTLMaterial{T}("", Vector3{T}(0))
 end
 
 function importMTL(fn::String; colortype=Float64)

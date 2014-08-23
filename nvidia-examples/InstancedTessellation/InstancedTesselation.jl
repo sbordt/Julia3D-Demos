@@ -3,31 +3,19 @@ using GLPlot #toopengl
 
 include("../../include.jl")
 
-# Create a window and its OpenGL context
-#window2 = GLFW.CreateWindow(640, 480, "GLFW.jl")
-
-# Make the window's context current
-#GLFW.MakeContextCurrent(window)
-
 window = createwindow("Mesh Display", 1000, 1000, debugging = false)
 cam = PerspectiveCamera(window.inputs, Vec3(2,2,0.5), Vec3(0))
 
-@time a = importOBJ("assets/models/Butterfly/Butterfly.obj", faceindextype=GLuint, vertextype=Float32)
+@time a = importOBJ("assets/models/airboat.obj", faceindextype=GLuint, vertextype=Float32)
 
 #@time mtl = importMTL("assets/models/Butterfly/Butterfly.mtl", colortype=Float32)
 #println(length(mtl))
 
-println(typeof(a))
-println(length(a[1]))
-println(length(a[2]))
-println(length(a[3]))
-println(length(a[4]))
-println(a[4][1])
 shader = TemplateProgram("assets/shaders/standard.vert", "assets/shaders/phongblinn.frag")
 
 data = [
 	:vertex 		=> GLBuffer(unitGeometry(a[1])),
-	:normal			=> GLBuffer(a[2]),
+#b	:normal			=> GLBuffer(a[2]),
 	:indexes		=> indexbuffer(a[4]),
 
 	:view 			=> cam.view,
