@@ -1,3 +1,8 @@
+##############################
+#
+# OBJ-Files
+#
+##############################
 
 # f 
 type WavefrontOBJFace{T}
@@ -81,70 +86,73 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
     lineNumber = 1
     while !eof(io)
         # read a line, remove newline and leading/trailing whitespaces
-        txt = strip(chomp(readline(io)))
-        assert(is_valid_ascii(txt))
+        line = strip(chomp(readline(io)))
+        @assert is_valid_ascii(line)
 
-        if !beginswith(txt, "#") && !isempty(txt) && !iscntrl(txt) #ignore comments
-            line = split(txt)
+        if !beginswith(line, "#") && !isempty(line) && !iscntrl(line) #ignore comments
+            line_parts = split(line)
+            command = line_parts[1]
+            remainder = length(line_parts) > 1 ? line[searchindex(line, line_parts[2]):end] : ""
+
             #vertex, 3 components only
-            if line[1] == "v" 
-                push!(vs, Vector3{vertextype}(vertexconvertfunc(line[2]),
-                                  vertexconvertfunc(line[3]),
-                                  vertexconvertfunc(line[4])))         
+            if command == "v" 
+                push!(vs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
+                                  vertexconvertfunc(line_parts[3]),
+                                  vertexconvertfunc(line_parts[4])))         
             #texture coordinates, w is optional and defaults to 0
-            elseif line[1] == "vt" 
-                if length(line) == 4
-                    push!(uvs, Vector3{vertextype}(vertexconvertfunc(line[2]),
-                                    vertexconvertfunc(line[3]),
-                                    vertexconvertfunc(line[4])))
+            elseif command == "vt" 
+                if length(line_parts) == 4
+                    push!(uvs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
+                                    vertexconvertfunc(line_parts[3]),
+                                    vertexconvertfunc(line_parts[4])))
                 else
-                    push!(uvs, Vector3{vertextype}(vertexconvertfunc(line[2]),
-                                    vertexconvertfunc(line[3]),
+                    push!(uvs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
+                                    vertexconvertfunc(line_parts[3]),
                                     vertexconvertfunc("0")))                    
                 end
             #normals, 3 components
-            elseif line[1] == "vn" 
-                push!(nvs, Vector3{vertextype}(vertexconvertfunc(line[2]),
-                                  vertexconvertfunc(line[3]),
-                                  vertexconvertfunc(line[4])))
+            elseif command == "vn" 
+                push!(nvs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
+                                  vertexconvertfunc(line_parts[3]),
+                                  vertexconvertfunc(line_parts[4])))
 
             # faces: #/# or #/#/# or #//#. The first entrly determines the type for all following entries
-            elseif line[1] == "f" 
-                assert(length(line) >= 4)
+            elseif command == "f" 
+                @assert length(line_parts) >= 4
                 face = WavefrontOBJFace{faceindextype}([],[],[],"",[],0)
 
                 # two slashes indicate #//#
-                if (contains(line[2], "//"))    
-                    for i=2:length(line)
-                        v = split(line[i], "//")
-                        assert(length(v) == 2)
+                if (contains(line_parts[2], "//"))    
+                    for i=2:length(line_parts)
+                        v = split(line_parts[i], "//")
+                        @assert length(v) == 2
                         push!(face.ivertices, vertexRef(v[1]))
                         push!(face.inormals, normalRef(v[2]))
                     end
                 else
-                    v = split(line[2], "/")
+                    v = split(line_parts[2], "/")
 
                     if length(v) == 1
-                        for i=2:length(line)
-                            push!(face.ivertices, vertexRef(line[i]))
+                        for i=2:length(line_parts)
+                            push!(face.ivertices, vertexRef(line_parts[i]))
                         end
                     elseif length(v) == 2
-                        for i=2:length(line)
-                            v = split(line[i], "/")
-                            assert(length(v) == 2)
+                        for i=2:length(line_parts)
+                            v = split(line_parts[i], "/")
+                            @assert length(v) == 2
                             push!(face.ivertices, vertexRef(v[1]))
                             push!(face.itexture_coords, textureRef(v[2]))
                         end
                     elseif length(v) == 3
-                        for i=2:length(line)
-                            v = split(line[i], "/") 
-                            assert(length(v) == 3)
+                        for i=2:length(line_parts)
+                            v = split(line_parts[i], "/") 
+                            @assert length(v) == 3
                             push!(face.ivertices, vertexRef(v[1]))
                             push!(face.itexture_coords, textureRef(v[2]))
                             push!(face.inormals, normalRef(v[3]))
                         end
                     else
-                        println("WARNING: Illegal line while parsing wavefront .obj: '$txt' (line $lineNumber)")
+                        println("WARNING: Illegal line while parsing wavefront .obj: '$line' (line $lineNumber)")
                         continue
                     end
 
@@ -167,14 +175,14 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
                 push!(fcs, face)
 
             # groups
-            elseif line[1] == "g"
+            elseif command == "g"
                 current_groups = String[];
 
-                if length(line) >= 2
-                    for i=2:length(line)
-                        push!(current_groups, line[i]) 
-                        if !haskey(groups, line[i])
-                            groups[line[i]] = Int[]
+                if length(line_parts) >= 2
+                    for i=2:length(line_parts)
+                        push!(current_groups, line_parts[i]) 
+                        if !haskey(groups, line_parts[i])
+                            groups[line_parts[i]] = Int[]
                         end
                     end
                 else
@@ -185,11 +193,11 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
                 end
 
             # set the smoothing group, 0 and off have the same meaning
-            elseif line[1] == "s" 
-                if line[2] == "off" 
+            elseif command == "s" 
+                if line_parts[2] == "off" 
                     current_smoothing_group = 0
                 else
-                    current_smoothing_group = int(line[2])
+                    current_smoothing_group = int(line_parts[2])
                 end
 
                 if !haskey(smoothing_groups, current_smoothing_group)
@@ -197,14 +205,14 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
                 end
 
             # material lib reference
-            elseif line[1] == "mtllib"
-                for i=2:length(line)
-                    push!(mtllibs, line[i])
+            elseif command == "mtllib"
+                for i=2:length(line_parts)
+                    push!(mtllibs, line_parts[i])
                 end
 
             # set a new material
-            elseif line[1] == "usemtl"
-                current_material = line[2];
+            elseif command == "usemtl"
+                current_material = line_parts[2];
 
                 if !haskey(materials, current_material)
                     materials[current_material] = Int[]
@@ -212,7 +220,7 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
 
             # unknown line
             else 
-                println("WARNING: Unknown line while parsing wavefront .obj: '$txt' (line $lineNumber)")
+                println("WARNING: Unknown line while parsing wavefront .obj: '$line' (line $lineNumber)")
             end
         end
 
@@ -364,19 +372,40 @@ end
 
 ##############################
 #
-# Read MTL-Files
+# MTL-Files
 #
 ##############################
 
 type WavefrontMTLMaterial{T}
     name::String
-    ambient:Vector3{T}
-    specular:Vector3{T}
-    diffuse:Vector3{T}
+    ambient::Vector3{T}
+    specular::Vector3{T}
+    diffuse::Vector3{T}
+    transmission_filter::Vector3{T}
+    illum::Int
+    dissolve::T
+    specular_exponent::T
+    ambient_texture::String
+    specular_texture::String
+    diffuse_texture::String
+    bump_map::String
 end
 
-function WavefrontMTLMaterial()
-    return WavefrontMTLMaterial{T}("", Vector3{T}(0))
+function WavefrontMTLMaterial(colortype=Float64)
+    return WavefrontMTLMaterial{colortype}(
+                "", 
+                Vector3(zero(colortype)), 
+                Vector3(zero(colortype)), 
+                Vector3(zero(colortype)),
+                Vector3(zero(colortype)), 
+                0, 
+                zero(colortype),
+                zero(colortype),
+                "",
+                "",
+                "",
+                "" 
+            )
 end
 
 function importMTL(fn::String; colortype=Float64)
@@ -386,66 +415,120 @@ function importMTL(fn::String; colortype=Float64)
     return mesh
 end
 
+function parseMTLColor(s::String, colortype=Float64)
+    colorconvfnc = colortype == Float64 ? float64 : (colortype == Float32 ? float32 : error("colortype: ", colortype, " not supported"))
+
+    line_parts = split(s)
+
+    if length(line_parts) == 3 # r b g
+        return Vector3{colortype}(colorconvfnc(line_parts[1]), colorconvfnc(line_parts[2]), colorconvfnc(line_parts[3]))
+    elseif line_parts[1] == "spectral" 
+        println("WARNING Parsing MTL-File: spectral color type not supported")
+        return Vector3{colortype}(colorconvfnc(1.0), colorconvfnc(0.412), colorconvfnc(0.705))
+    else
+        println("WARNING Parsing MTL-File: CIEXYZ color space or wrong color type. Not supported")
+        return Vector3{colortype}(colorconvfnc(1.0), colorconvfnc(0.412), colorconvfnc(0.705))
+    end
+end
+
+function parseMTLTextureMap(s::String)
+    line_parts = split(s)
+
+    if length(line_parts) == 1 # no options
+        return line_parts[1]
+    else
+        println("WARNING Parsing MTL-File: texture map options or invalid texutre map command. Not supported")
+        return ""
+    end
+end
+
 function importMTL(io::IO; colortype=Float64)
-    colorconv = convert(colortype)
+    colorconvfnc = colortype == Float64 ? float64 : (colortype == Float32 ? float32 : error("colortype: ", colortype, " not supported"))
 
     materials = WavefrontMTLMaterial{colortype}[]
 
     lineNumber = 1
     while !eof(io)
         # read a line, remove newline and leading/trailing whitespaces
-        txt = strip(chomp(readline(io)))
-        assert(is_valid_ascii(txt))
+        line = strip(chomp(readline(io)))
+        @assert is_valid_ascii(line)
 
-        if !beginswith(txt, "#") && !isempty(txt) && !iscntrl(txt) #ignore comments
-            line = split(txt)
+        if !beginswith(line, "#") && !isempty(line) && !iscntrl(line) #ignore comments
+            line_parts = split(line)
+            command = line_parts[1]
+            remainder = length(line_parts) > 1 ? line[searchindex(line, line_parts[2]):end] : ""
+
             # new material
-            if line[1] == "newmtl" 
-                push!(materials, WavefrontMTLMaterial{colortype}())
-                materials[end].name = line[2]
+            if command == "newmtl" 
+                push!(materials, WavefrontMTLMaterial(colortype))
+                materials[end].name = line_parts[2]
             # abmient 
-            elseif line[1] == "Ka"
+            elseif command == "Ka"
+                materials[end].ambient = parseMTLColor(remainder, colortype)
             # diffuse
-            elseif line[1] == "Kd"
+            elseif command == "Kd"
+                materials[end].diffuse = parseMTLColor(remainder, colortype)
             # specular
-            elseif line[1] == "Ks"
-            #
-            elseif line[1] == "Tf"
+            elseif command == "Ks"
+                materials[end].specular = parseMTLColor(remainder, colortype)
+            # transmission filter
+            elseif command == "Tf"
+                materials[end].transmission_filter = parseMTLColor(remainder, colortype)
+            # illumination model
+            elseif command == "illum"
+                materials[end].illum = int(line_parts[2])
+            # dissolve
+            elseif command == "d"
+                if line_parts[2] == "-halo"
+                    println("WARNING Parsing MTL-File: d -halo not supported")
+                else
+                    materials[end].dissolve = colorconvfnc(line_parts[2])
+                end
+            # specular exponent
+            elseif command == "Ns"
+                materials[end].specular_exponent = colorconvfnc(line_parts[2])
+            # sharpness
+            elseif command == "sharpness"
+                println("WARNING Parsing MTL-File: sharpness not supported")
+            # optical density
+            elseif command == "Ni"
+                println("WARNING Parsing MTL-File: optical density not supported")
+            # ambient texture map
+            elseif command == "map_Ka"
+                materials[end].ambient_texture = parseMTLTextureMap(remainder)
+            # diffuse texture map
+            elseif command == "map_Kd"
+                materials[end].diffuse_texture = parseMTLTextureMap(remainder)
+            # specular texture map
+            elseif command == "map_Ks"
+                materials[end].specular_texture = parseMTLTextureMap(remainder)
+            # specular exponent texture map
+            elseif command == "map_Ns"
+                println("WARNING Parsing MTL-File: map_Ns not supported")
+            # dissolve texture map
+            elseif command == "map_d"
+                println("WARNING Parsing MTL-File: map_d not supported")
             # ???
-            elseif line[1] == "illum"
+            elseif command == "disp"
+                println("WARNING Parsing MTL-File: disp not supported")
             # ???
-            elseif line[1] == "d"
+            elseif command == "decal"
+                println("WARNING Parsing MTL-File: decal not supported")
+            # bump map
+            elseif command == "bump"
+                materials[end].bump_map = parseMTLTextureMap(remainder)   
             # ???
-            elseif line[1] == "Ns"
-            # ???
-            elseif line[1] == "sharpness"
-            # ???
-            elseif line[1] == "Ni"
-            # ???
-            elseif line[1] == "map_Ka"
-            # ???
-            elseif line[1] == "map_Kd"
-            # ???
-            elseif line[1] == "map_Ks"
-            # ???
-            elseif line[1] == "map_Ns"
-            # ???
-            elseif line[1] == "map_d"
-            # ???
-            elseif line[1] == "disp"
-            # ???
-            elseif line[1] == "decal"
-            # ???
-            elseif line[1] == "bump"
-            # ???
-            elseif line[1] == "refl"
+            elseif command == "refl"
+                println("WARNING Parsing MTL-File: refl not supported")
             # unknown line
             else 
-                println("WARNING: Unknown line while parsing wavefront .mtl: '$txt' (line $lineNumber)")
+                println("WARNING: Unknown line while parsing wavefront .mtl: '$line' (line $lineNumber)")
             end
         end
 
         # read next line
         lineNumber += 1
     end
+
+    return materials
 end
