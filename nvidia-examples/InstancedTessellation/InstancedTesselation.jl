@@ -3,11 +3,12 @@ using GLPlot #toopengl
 
 include("../../include.jl")
 
-window = createwindow("Mesh Display", 1000, 1000, debugging = true)
+window = createwindow("Mesh Display", 1000, 1000, debugging = false)
 cam = PerspectiveCamera(window.inputs, Vec3(2,2,0.5), Vec3(0))
 
 # vs_compiled, nvs_compiled, uvs_compiled, fcs_compiled, groups, smoothing_groups, mtllibs, materials
 @time obj = importOBJ("assets/models/Butterfly/Butterfly.obj", faceindextype=GLuint, vertextype=Float32)
+#@time obj = importOBJ("assets/models/Biff.obj", faceindextype=GLuint, vertextype=Float32)
 @time computeNormals!(obj)
 @time lol = compile(obj)
 (vs, nvs, uvs,  vs_material_id, fcs) = lol

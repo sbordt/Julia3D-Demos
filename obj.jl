@@ -1,11 +1,4 @@
 
-function importOBJ(fn::String; vertextype=Float64, faceindextype=Int)
-    str = open(fn,"r")
-    mesh = importOBJ(str, vertextype=vertextype, faceindextype=faceindextype)
-    close(str)
-    return mesh
-end
-
 # f 
 type WavefrontOBJFace{T}
     ivertices::Vector{T}
@@ -31,6 +24,13 @@ type WavefrontOBJ{T,V}
     mtllibs::Vector{String}
     materials::Dict{String, Array{Int}}
 end 
+
+function importOBJ(fn::String; vertextype=Float64, faceindextype=Int)
+    str = open(fn,"r")
+    mesh = importOBJ(str, vertextype=vertextype, faceindextype=faceindextype)
+    close(str)
+    return mesh
+end
 
 # smoothing groups: "off" goes to smoothing group 0, so each face has a unique smoothing group
 function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
@@ -361,9 +361,18 @@ function compile{vertextype,faceindextype}(obj::WavefrontOBJ{vertextype,faceinde
     return (vs_compiled, nvs_compiled, uvs_compiled, vs_material_id, fcs_compiled)
 end
 
+
+##############################
+#
+# Read MTL-Files
+#
+##############################
+
 type WavefrontMTLMaterial{T}
     name::String
-    Ka::Vector3{T}
+    ambient:Vector3{T}
+    specular:Vector3{T}
+    diffuse:Vector3{T}
 end
 
 function WavefrontMTLMaterial()
@@ -378,6 +387,8 @@ function importMTL(fn::String; colortype=Float64)
 end
 
 function importMTL(io::IO; colortype=Float64)
+    colorconv = convert(colortype)
+
     materials = WavefrontMTLMaterial{colortype}[]
 
     lineNumber = 1
@@ -388,14 +399,46 @@ function importMTL(io::IO; colortype=Float64)
 
         if !beginswith(txt, "#") && !isempty(txt) && !iscntrl(txt) #ignore comments
             line = split(txt)
-            #vertex, 3 components only
+            # new material
             if line[1] == "newmtl" 
                 push!(materials, WavefrontMTLMaterial{colortype}())
                 materials[end].name = line[2]
+            # abmient 
             elseif line[1] == "Ka"
+            # diffuse
             elseif line[1] == "Kd"
+            # specular
             elseif line[1] == "Ks"
+            #
             elseif line[1] == "Tf"
+            # ???
+            elseif line[1] == "illum"
+            # ???
+            elseif line[1] == "d"
+            # ???
+            elseif line[1] == "Ns"
+            # ???
+            elseif line[1] == "sharpness"
+            # ???
+            elseif line[1] == "Ni"
+            # ???
+            elseif line[1] == "map_Ka"
+            # ???
+            elseif line[1] == "map_Kd"
+            # ???
+            elseif line[1] == "map_Ks"
+            # ???
+            elseif line[1] == "map_Ns"
+            # ???
+            elseif line[1] == "map_d"
+            # ???
+            elseif line[1] == "disp"
+            # ???
+            elseif line[1] == "decal"
+            # ???
+            elseif line[1] == "bump"
+            # ???
+            elseif line[1] == "refl"
             # unknown line
             else 
                 println("WARNING: Unknown line while parsing wavefront .mtl: '$txt' (line $lineNumber)")
