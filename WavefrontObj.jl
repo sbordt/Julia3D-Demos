@@ -239,7 +239,7 @@ function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
 
             if !isempty(face.itexture_coords)
                 triangle.itexture_coords = face.itexture_coords[1:3]
-                splice!(face.texture_coords, 2)
+                splice!(face.itexture_coords, 2)
             end
             if !isempty(face.inormals)
                 triangle.inormals = face.inormals[1:3]

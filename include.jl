@@ -1,4 +1,4 @@
-include("obj.jl")
+include("WavefrontObj.jl")
 
 function unitGeometry{T}(geometry::Vector{Vector3{T}}) 
 	assert(!isempty(geometry))
