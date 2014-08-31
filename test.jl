@@ -2,7 +2,11 @@ using ImmutableArrays
 
 include("include.jl")
 
-obj = importOBJ("nvidia-examples/InstancedTessellation/assets/models/Butterfly/Butterfly.obj")
+@time obj = importOBJ("nvidia-examples/InstancedTessellation/assets/models/Butterfly/Butterfly.obj")
+
+
+
+
 computeNormals!(obj)
 compile(obj)
 

@@ -38,83 +38,85 @@ function importOBJ(fn::String; vertextype=Float64, faceindextype=Int)
 end
 
 # smoothing groups: "off" goes to smoothing group 0, so each face has a unique smoothing group
-function importOBJ(io::IO; vertextype=Float64, faceindextype=Int)
-    vertexconvertfunc = vertextype == Float64 ? float64 : (vertextype == Float32 ? float32 : error("Vertex type: ", vertextype, " not supported"))
-    faceconvertfunc = faceindextype == Int ? int : (
-        faceindextype == Int32 ? int32 : (
-            faceindextype == Uint64 ? uint64 : faceindextype == Uint32 ? uint32 : error("Faceindex type: ", faceindextype, " not supported")))   
+function importOBJ{VT <: FloatingPoint, FT <: Integer}(io::IO; vertextype::Type{VT}=Float64, faceindextype::Type{FT}=Int)
+    readfloat(x::FloatingPoint) = convert(vertextype, x)
+    readfloat(x::String)        = parsefloat(vertextype, x)
+    readint(x::String)          = parseint(faceindextype, x)
+    readint(x::Integer)         = convert(faceindextype, x)
 
     vs 	= Vector3{vertextype}[]
     nvs = Vector3{vertextype}[]
     uvs = Vector3{vertextype}[]
     fcs = WavefrontOBJFace{faceindextype}[]
 
-    groups = Dict()
-    current_groups = String[]
-    smoothing_groups = [0 => Int[]]
+    groups                  = (String => Array{Int})[]
+    current_groups          = String[]
+    smoothing_groups        = [0 => Int[]]
     current_smoothing_group = 0
 
     mtllibs = String[]
-    materials = Dict() # map material names to array with indieces of faces
+    materials = (String => Array{Int})[] # map material names to array with indieces of faces
     current_material = ""
     
     # face indices are allowed to be negative, these three methods handle that
     function vertexRef(s::String)
         i = int(s)
         if i < 0
-            return faceconvertfunc(length(vs) + i +1)
+            return readint(length(vs) + i +1)
         end
-        return faceconvertfunc(i)
+        return readint(i)
     end
 
     function normalRef(s::String)
         i = int(s)
         if i < 0
-            return faceconvertfunc(length(nvs) + i +1)
+            return readint(length(nvs) + i +1)
         end
-        return faceconvertfunc(i)
+        return readint(i)
     end
 
     function textureRef(s::String)
         i = int(s)
         if i < 0
-            return faceconvertfunc(length(uvs) + i +1)
+            return readint(length(uvs) + i +1)
         end
-        return faceconvertfunc(i)
+        return readint(i)
     end
 
     lineNumber = 1
     while !eof(io)
+
         # read a line, remove newline and leading/trailing whitespaces
         line = strip(chomp(readline(io)))
+        
         @assert is_valid_ascii(line)
 
         if !beginswith(line, "#") && !isempty(line) && !iscntrl(line) #ignore comments
             line_parts = split(line)
-            command = line_parts[1]
-            remainder = length(line_parts) > 1 ? line[searchindex(line, line_parts[2]):end] : ""
+            command    = line_parts[1]
+            remainder  = length(line_parts) > 1 ? line[searchindex(line, line_parts[2]):end] : ""
 
             #vertex, 3 components only
             if command == "v" 
-                push!(vs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
-                                  vertexconvertfunc(line_parts[3]),
-                                  vertexconvertfunc(line_parts[4])))         
+                push!(vs, Vector3{vertextype}(readfloat(line_parts[2]),
+                                  readfloat(line_parts[3]),
+                                  readfloat(line_parts[4])))         
             #texture coordinates, w is optional and defaults to 0
             elseif command == "vt" 
                 if length(line_parts) == 4
-                    push!(uvs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
-                                    vertexconvertfunc(line_parts[3]),
-                                    vertexconvertfunc(line_parts[4])))
+                    push!(uvs, Vector3{vertextype}(readfloat(line_parts[2]),
+                                    readfloat(line_parts[3]),
+                                    readfloat(line_parts[4])))
                 else
-                    push!(uvs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
-                                    vertexconvertfunc(line_parts[3]),
-                                    vertexconvertfunc("0")))                    
+                    push!(uvs, Vector3{vertextype}(readfloat(line_parts[2]),
+                                    readfloat(line_parts[3]),
+                                    readfloat("0")))                    
                 end
             #normals, 3 components
             elseif command == "vn" 
-                push!(nvs, Vector3{vertextype}(vertexconvertfunc(line_parts[2]),
-                                  vertexconvertfunc(line_parts[3]),
-                                  vertexconvertfunc(line_parts[4])))
+                push!(nvs, Vector3{vertextype}(readfloat(line_parts[2]),
+                                  readfloat(line_parts[3]),
+                                  readfloat(line_parts[4])))
 
             # faces: #/# or #/#/# or #//#. The first entrly determines the type for all following entries
             elseif command == "f" 
@@ -322,9 +324,10 @@ end
 # compile OBJ
 function compile{vertextype,faceindextype}(obj::WavefrontOBJ{vertextype,faceindextype})
     # change this copy&paste
-    faceconvertfunc = faceindextype == Int ? int : (
-        faceindextype == Int32 ? int32 : (
-            faceindextype == Uint64 ? uint64 : faceindextype == Uint32 ? uint32 : error("Faceindex type: ", faceindextype, " not supported")))
+    readfloat(x::FloatingPoint) = convert(vertextype, x)
+    readfloat(x::String)        = parsefloat(vertextype, x)
+    readint(x::String)          = parseint(faceindextype, x)
+    readint(x::Integer)         = convert(faceindextype, x)
 
     vs_compiled  = Vector3{vertextype}[]
     nvs_compiled = Vector3{vertextype}[]
@@ -362,7 +365,7 @@ function compile{vertextype,faceindextype}(obj::WavefrontOBJ{vertextype,faceinde
             push!(uvs_compiled, obj.tex_coords[face.itexture_coords[3]])
         end
 
-        push!(fcs_compiled, Vector3{faceindextype}(faceconvertfunc(i), faceconvertfunc(i+1), faceconvertfunc(i+2)))
+        push!(fcs_compiled, Vector3{faceindextype}(readint(i), readint(i+1), readint(i+2)))
         i += 3
     end
 
