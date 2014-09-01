@@ -1,4 +1,4 @@
-using GLWindow, GLAbstraction, GLFW, ModernGL, ImmutableArrays
+using GLWindow, GLAbstraction, GLFW, ModernGL, ImmutableArrays, WavefrontObj
 using GLPlot #toopengl 
 
 include("../../include.jl")
@@ -6,7 +6,7 @@ include("../../include.jl")
 window = createwindow("Mesh Display", 1000, 1000, debugging = false)
 cam = PerspectiveCamera(window.inputs, Vec3(2,2,0.5), Vec3(0))
 
-@time obj = importOBJ("assets/models/Butterfly/Butterfly.obj", faceindextype=GLuint, vertextype=Float32)
+@time obj = readObjFile("assets/models/Butterfly/Butterfly.obj", faceindextype=GLuint, vertextype=Float32)
 #@time obj = importOBJ("assets/models/Biff.obj", faceindextype=GLuint, vertextype=Float32)
 
 println(obj.mtllibs)
@@ -14,25 +14,24 @@ println(collect(keys(obj.materials)))
 println(collect(keys(obj.groups)))
 println(collect(keys(obj.smoothing_groups)))
 
-@time computeNormals!(obj)
-@time (vs, nvs, uvs,  vs_material_id, fcs) = compile(obj)
+computeNormals!(obj, override = true)
+(vs, nvs, uvs,  vs_material_id, fcs) = compile(obj)
 
-materials = importMTL("assets/models/Butterfly/Butterfly.mtl")
+# hack: invert normals for glabstraction
+nvs = -nvs
+
+materials = readMtlFile("assets/models/Butterfly/Butterfly.mtl")
 for mtl in materials
 	println(mtl)
 end 
 
 shader = TemplateProgram("assets/shaders/standard.vert", "assets/shaders/phongblinn.frag")
-println(minimum(vs_material_id))
-println(maximum(vs_material_id))
-matid = GLBuffer(vs_material_id, 1)
-println(eltype(matid))
 
 data = [
 	:vertex 		=> GLBuffer(unitGeometry(vs)),
 	:normal			=> GLBuffer(nvs),
 	:uv				=> GLBuffer(uvs),
-	:material_id	=> matid,
+	:material_id	=> GLBuffer(vs_material_id, 1),
 	:indexes		=> indexbuffer(fcs),
 
 	:tex1 			=> Texture("assets/models/Butterfly/BUTTBODY.JPG"),

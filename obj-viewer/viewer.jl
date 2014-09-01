@@ -1,21 +1,36 @@
-using GLWindow, GLAbstraction, GLFW, ModernGL, ImmutableArrays
+using GLWindow, GLAbstraction, GLFW, ModernGL, ImmutableArrays, WavefrontObj, Gtk
 using GLPlot #toopengl 
 
 include("../include.jl")
 
+function open_obj_dialog()
+	return open_dialog("Select an .obj file!", filters=("*.obj",))
+end
+
+#objpath = "assets/models/Elephant/elephant.obj"
+#objpath = "assets/models/cat/cat.obj"
+#objpath = "assets/models/Butterfly/Butterfly.obj"
+#objpath = "assets/models/airboat.obj"
+objpath = open_obj_dialog()
+
+obj = readObjFile(objpath, faceindextype=GLuint, vertextype=Float32, compute_normals = false, triangulate = false)
+computeNormals!(obj, smooth_normals = true, override = false)
+triangulate!(obj)
+
+# load mtl files if present
+materials = WavefrontMtlMaterial{Float32}[]
+
+for mtllib in obj.mtllibs
+	materials = [materials, readMtlFile( objpath[1:rsearchindex(objpath, "/")]*mtllib, colortype=Float32 )] 
+end
+
+(vs, nvs, uvs,  vs_material_id, fcs) = compile(obj)
+
+# hack: invert normals for glabstraction
+nvs = -nvs
+
 window = createwindow("OBJ-Viewer", 1000, 1000, debugging = false)
 cam = PerspectiveCamera(window.inputs, Vec3(2,2,0.5), Vec3(0))
-
-#@time obj = importOBJ("assets/models/buddha.obj", faceindextype=GLuint, vertextype=Float32)
-@time obj = importOBJ("assets/models/Elephant/elephant.obj", faceindextype=GLuint, vertextype=Float32)
-
-println(obj.mtllibs)
-println(collect(keys(obj.materials)))
-println(collect(keys(obj.groups)))
-println(collect(keys(obj.smoothing_groups)))
-
-@time computeNormals!(obj)
-@time (vs, nvs, uvs,  vs_material_id, fcs) = compile(obj)
 
 # compute index buffer for GL_LINES rendering
 lines = Vector2{GLuint}[]
@@ -65,6 +80,10 @@ while !GLFW.WindowShouldClose(window.glfwWindow)
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
   render(obj)
+  
+  if in(341, window.inputs[:buttonspressed].value) &&  in(79, window.inputs[:buttonspressed].value)
+  	# strg + o 
+  end
 
   yield() # this is needed for react to work
 
