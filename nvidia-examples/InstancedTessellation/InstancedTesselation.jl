@@ -9,11 +9,6 @@ cam = PerspectiveCamera(window.inputs, Vec3(2,2,0.5), Vec3(0))
 @time obj = readObjFile("assets/models/Butterfly/Butterfly.obj", faceindextype=GLuint, vertextype=Float32)
 #@time obj = importOBJ("assets/models/Biff.obj", faceindextype=GLuint, vertextype=Float32)
 
-println(obj.mtllibs)
-println(collect(keys(obj.materials)))
-println(collect(keys(obj.groups)))
-println(collect(keys(obj.smoothing_groups)))
-
 computeNormals!(obj, override = true)
 (vs, nvs, uvs,  vs_material_id, fcs) = compile(obj)
 
